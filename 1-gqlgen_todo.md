@@ -130,19 +130,20 @@ type ExecutableSchema interface {
 	Exec(ctx context.Context) ResponseHandler
 }
 ```
-**ast.Schema**包含了整个schema文件中定义的解析
+**Schema**返回包含了整个schema文件中定义的解析,schema文件如何解析以后再讲。**Complexity**表示请求查询时的复杂度,**Exec**返回请求结果,executableSchema实现了ExecutableSchema接口
 ```go
 //github.com/99designs/gqlgen/graphql/handler/server.go
 
 func New(es graphql.ExecutableSchema) *Server {
 	return &Server{
-		exec: executor.New(es),
+		exec: executor.New(es),	//这个executor很重要，整个服务的请求处理都是通过exector来进行的
 	}
 }
 
 func NewDefaultServer(es graphql.ExecutableSchema) *Server {
 	srv := New(es)
 
+	//设置transport,作用相当于net/http中的transport
 	srv.AddTransport(transport.Websocket{
 		KeepAlivePingInterval: 10 * time.Second,
 	})
@@ -160,4 +161,47 @@ func NewDefaultServer(es graphql.ExecutableSchema) *Server {
 
 	return srv
 }
+```
+```go
+//github.com/99designs/gqlgen/graphql/executor/executor.go
+
+// Executor executes graphql queries against a schema.
+type Executor struct {
+	es         graphql.ExecutableSchema
+	extensions []graphql.HandlerExtension
+	ext        extensions
+
+	errorPresenter graphql.ErrorPresenterFunc
+	recoverFunc    graphql.RecoverFunc
+	queryCache     graphql.Cache
+}
+
+var _ graphql.GraphExecutor = &Executor{}
+
+// New creates a new Executor with the given schema, and a default error and
+// recovery callbacks, and no query cache or extensions.
+func New(es graphql.ExecutableSchema) *Executor {
+	e := &Executor{
+		es:             es,
+		errorPresenter: graphql.DefaultErrorPresenter,
+		recoverFunc:    graphql.DefaultRecover,
+		queryCache:     graphql.NoCache{},
+		ext:            processExtensions(nil),
+	}
+	return e
+}
+```
+回到自己定义的server这边,设置中间件，设置路由，启动服务
+```go
+//设置服务出现panic时的一个中间件
+srv.SetRecoverFunc(func(ctx context.Context, err interface{}) (userMessage error) {
+		// send this panic somewhere
+		log.Print(err)
+		debug.PrintStack()
+		return errors.New("user message on panic")
+})
+
+http.Handle("/", playground.Handler("Todo", "/query"))
+http.Handle("/query", srv)
+log.Fatal(http.ListenAndServe(":8081", nil))
 ```
