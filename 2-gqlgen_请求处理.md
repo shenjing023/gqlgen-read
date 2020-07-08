@@ -469,4 +469,7 @@ func (ec *executionContext) _Todo(ctx context.Context, sel ast.SelectionSet, obj
 	return out
 }
 ```
+### 最后
+
+通过一步一步的跳转查看可以大概知道了gqlgen在处理http请求的流程，先是把http请求的query解析成graphql请求的结构，然后处理中间件，如检验请求参数，请求的复杂度，持久化查询等，然后到从服务中获取response数据，最后从response中返回请求中需要的字段。
 
